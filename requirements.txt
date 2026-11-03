@@ -1,0 +1,13 @@
+# Python 3.11；torch 需按 CUDA 版本从 PyTorch 官方源安装，见 README
+torch==2.14.1
+numpy==2.3.5
+sentence-transformers==6.1.0
+transformers==5.20.1
+huggingface_hub==1.33.0
+jieba==0.42.1
+rank-bm25==0.2.2
+pandas==3.1.0
+pyarrow==26.0.0
+pypdf==6.21.4
+matplotlib==3.11.2
+gradio==6.31.0

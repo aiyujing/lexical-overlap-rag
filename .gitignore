@@ -1,0 +1,11 @@
+# 密钥
+.env
+# 虚拟环境
+.venv/
+# 原始数据（d2l-zh 可由脚本重新下载；C-MTEB 未写明许可，不上传）
+data/raw/
+__pycache__/
+# 微调模型（体积大，可由 step6 重新训练）
+models/
+logs/
+backup_*/
