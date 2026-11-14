@@ -11,3 +11,5 @@ pyarrow==26.0.0
 pypdf==6.21.4
 matplotlib==3.11.2
 gradio==6.31.0
+scipy==1.17.1
+statsmodels==0.15.0

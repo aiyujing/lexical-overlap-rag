@@ -283,7 +283,7 @@ def fig_experiments():
     ax.grid(axis="y", visible=False)
     ax.grid(axis="x", visible=True)
     ax.set_xlabel("错题数（微调后 + reranker，测试集 568 题）")
-    ax.set_title("错误分析：低重叠组的错误主要是被字面骗")
+    ax.set_title("错误分析：各重叠组错题的分类构成")
     ax.legend(loc="lower right", fontsize=8.5)
     save(fig, "fig10_error_analysis.png")
 
@@ -302,7 +302,124 @@ def fig_external():
     save(fig, "fig11_external_by_overlap.png")
 
 
+def fig_statistics():
+    path = R / "statistics.json"
+    if not path.exists():
+        print("   （跳过统计图：先运行 step11_statistics.py）")
+        return
+    s = json.loads(path.read_text(encoding="utf-8"))
+
+    # 图14：主要方法在三个重叠组的 R@1 及 bootstrap 95% 置信区间
+    names = [("BM25", "BM25"), ("bge-base", "bge-base 原版"), ("bge-m3", "bge-m3"),
+             ("bge-base-ft", "bge-base 微调后"), ("bge-base-ft+rerank", "微调后 + reranker")]
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    x = np.arange(len(GROUPS))
+    w = 0.15
+    for k, (n, lab) in enumerate(names):
+        v = np.array([s["R@1置信区间"][n][g] for g in GROUPS])
+        xs = x + (k - 2) * w
+        ax.errorbar(xs, v[:, 0], yerr=[v[:, 0] - v[:, 1], v[:, 2] - v[:, 0]], fmt="o", ms=6, color=C[k],
+                    mec="#fcfcfb", mew=1.5, elinewidth=1.5, capsize=0, label=lab)
+    ax.set_xticks(x, GROUP_TICKS)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("R@1（竖线为 bootstrap 95% 置信区间）")
+    ax.set_title("各方法 R@1 的 95% 置信区间")
+    ax.legend(loc="upper left", fontsize=8.5)
+    save(fig, "fig14_ci_by_overlap.png")
+
+    # 图15：只看 paraphrase 题，按重叠率细分（排除题型的影响）
+    within = s["paraphrase题内部按重叠率分组"]
+    labs = {"BM25": "BM25", "bge-base": "bge-base 原版", "bge-base-ft": "bge-base 微调后",
+            "bge-base-ft+rerank": "微调后 + reranker"}
+    bins = list(within["BM25"].keys())
+    fig, ax = plt.subplots(figsize=(6.8, 4.0))
+    ends = []
+    for k, (n, lab) in enumerate(labs.items()):
+        ys = [within[n][b][1] for b in bins]
+        ax.plot(range(len(bins)), ys, color=C[k], lw=2, marker="o", ms=6, mec="#fcfcfb", mew=1.5, label=lab)
+        ends.append([ys[-1], f"{lab} {ys[-1]:.2f}"])
+    ends.sort(reverse=True)
+    for j in range(1, len(ends)):
+        ends[j][0] = min(ends[j][0], ends[j - 1][0] - 0.05)
+    for y, lab in ends:
+        ax.text(len(bins) - 1 + 0.1, y, lab, fontsize=8.5, color=INK2, va="center")
+    ax.set_xticks(range(len(bins)), [f"{b.replace('-', '–')}\n(n={within['BM25'][b][0]})" for b in bins])
+    ax.set_xlim(-0.3, len(bins) + 0.9)
+    ax.set_ylim(0, 0.8)
+    ax.set_xlabel("问题与答案段落的字面重叠率（仅 paraphrase 题，285 道）")
+    ax.set_ylabel("R@1")
+    ax.set_title("固定题型后，重叠率越低仍然越容易找错")
+    ax.legend(loc="upper left", fontsize=8.5)
+    save(fig, "fig15_within_paraphrase.png")
+
+    # 图16：逻辑回归，重叠率每升 0.1 的优势比（控制题型、问题长度、段落长度）
+    reg = s["逻辑回归"]
+    rn = [("BM25", "BM25"), ("bge-base", "bge-base 原版"), ("bge-m3", "bge-m3"),
+          ("bge-base-ft", "bge-base 微调后"), ("bge-base-ft+rerank", "微调后 + reranker")]
+    fig, ax = plt.subplots(figsize=(6.8, 3.6))
+    for k, (n, lab) in enumerate(rn):
+        o, lo, hi = reg[n]["全部题·重叠率每升0.1的OR"]
+        ax.plot([lo, hi], [k, k], color=C[0], lw=2, solid_capstyle="round")
+        ax.scatter([o], [k], s=60, color=C[0], edgecolor="#fcfcfb", linewidth=1.5, zorder=3)
+        ax.text(hi + 0.06, k, f"{o:.2f}（{lo:.2f}–{hi:.2f}）", va="center", fontsize=8.5, color=INK2)
+    ax.axvline(1, color=MUTED, lw=1, ls="--")
+    ax.set_yticks(range(len(rn)), [lab for _, lab in rn])
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.grid(axis="x", visible=True)
+    ax.set_xlim(0.8, 3.6)
+    ax.set_xlabel("优势比（重叠率每升 0.1，答对的几率变为原来的倍数；虚线 = 1 表示无影响）")
+    ax.set_title("控制题型与长度后，重叠率对所有方法仍有显著影响")
+    save(fig, "fig16_logit_or.png")
+
+    # 图17：BM25 与微调模型的互补性，各重叠组里"谁对谁错"的题数
+    comp = s["互补性"]["BM25 vs bge-base-ft"]
+    cats = [("两者都对", "两者都对"), ("只有BM25对", "只有 BM25 对"), ("只有bge-base-ft对", "只有微调模型对"),
+            ("两者都错", "两者都错")]
+    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+    left = np.zeros(len(GROUPS))
+    for k, (key, lab) in enumerate(cats):
+        v = np.array([comp[g][key] for g in GROUPS])
+        ax.barh(range(len(GROUPS)), v, left=left, color=C[k], height=0.6, edgecolor="#fcfcfb", linewidth=2, label=lab)
+        for i, (vv, l0) in enumerate(zip(v, left)):
+            if vv >= 10:
+                ax.text(l0 + vv / 2, i, str(vv), ha="center", va="center", fontsize=8.5, color="#fcfcfb")
+        left += v
+    ax.set_yticks(range(len(GROUPS)), [g.replace("\n", " ") for g in GROUP_TICKS])
+    ax.invert_yaxis()
+    ax.grid(axis="y", visible=False)
+    ax.grid(axis="x", visible=True)
+    ax.set_xlabel("题数（测试集，R@1 是否命中）")
+    ax.set_title("BM25 只在高、中重叠组有独占的正确题", pad=28)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=8.5, ncol=4)
+    save(fig, "fig17_complementarity.png")
+
+    # 图18：四类问题的重叠率分布（含手写题），箱线图
+    qs = jl(P / "questions.jsonl")
+    hand = [float(r["overlap"]) for r in csv.DictReader((R / "handwritten_per_question.csv").open(encoding="utf-8-sig"))]
+    groups = [("大模型 plain 题", [q["overlap"] for q in qs if q["kind"] == "plain"]),
+              ("大模型 paraphrase 题", [q["overlap"] for q in qs if q["kind"] == "paraphrase"]),
+              ("作者手写题", hand), ("真人搜索提问\n（DuRetrieval）", real_query_overlap())]
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    bp = ax.boxplot([v for _, v in groups], vert=False, widths=0.5, patch_artist=True, showfliers=False,
+                    medianprops={"color": INK, "lw": 1.5}, whiskerprops={"color": MUTED}, capprops={"color": MUTED})
+    for k, b in enumerate(bp["boxes"]):
+        b.set(facecolor=C[k], alpha=0.85, edgecolor="#fcfcfb")
+    for k, (_, v) in enumerate(groups):
+        ax.text(1.02, k + 1, f"n={len(v)}  均值 {np.mean(v):.2f}", va="center", fontsize=8.5, color=INK2)
+    ax.set_yticks(range(1, len(groups) + 1), [g for g, _ in groups])
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1.32)
+    ax.set_xticks(np.linspace(0, 1, 6))
+    ax.grid(axis="y", visible=False)
+    ax.grid(axis="x", visible=True)
+    ax.set_xlabel("字面重叠率")
+    ax.set_title("四类问题的字面重叠率")
+    save(fig, "fig18_overlap_four_sources.png")
+
+
 if __name__ == "__main__":
     fig_data()
     fig_experiments()
     fig_external()
+    fig_statistics()

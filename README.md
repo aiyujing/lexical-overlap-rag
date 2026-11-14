@@ -50,6 +50,7 @@ pip install -r requirements.txt
 | 8 | `python step8_error_analysis.py` | 错误分析：DeepSeek 给错题分类（约 12 万 token） | 约 2 分钟 |
 | 9 | `python step9_external_validation.py` | 外部验证：DuRetrieval 真人搜索提问，10 万段落 | 较长，主要花在 BM25 |
 | 10 | `python step10_human_eval.py` | 人工抽查表和手写题的统计与评测（需先人工填 `data/processed/spot_check.csv`、`data/handwritten.csv`） | 约 1 分钟 |
+| 11 | `python step11_statistics.py` | 统计检验：bootstrap 置信区间、McNemar 配对检验、逻辑回归控制题型、互补性、错误分析标准的一致性 | 约 1 分钟 |
 | 图 | `python make_figures.py` | 生成 `figures/` 下的报告配图 | 约 1 分钟 |
 | demo | `python app.py` | 网页问答，浏览器打开 http://127.0.0.1:7860 | — |
 
@@ -58,7 +59,7 @@ pip install -r requirements.txt
 ## 文件
 
 ```
-step1–10_*.py         数据处理与实验，按编号顺序运行
+step1–11_*.py         数据处理、实验与统计分析，按编号顺序运行
 make_figures.py       报告配图
 app.py                网页问答 demo
 lesson*.py            学习过程中手写 embedding / attention 的练习代码
